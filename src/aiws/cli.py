@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any
+
 import typer
 
 try:
@@ -16,37 +19,84 @@ except ImportError:  # pragma: no cover - environment fallback
 
 
 from .constants import VERSION
+from .installer_manager import InstallerManager
+from .state import StateManager
+from .tools.registry import REGISTRY
 
 console = Console()
 app = typer.Typer(add_completion=False, help="AI Workstation Installer")
+install_app = typer.Typer(help="Install an application")
+update_app = typer.Typer(help="Update an application")
+uninstall_app = typer.Typer(help="Uninstall an application")
+doctor_app = typer.Typer(help="Run diagnostics for an application")
+manager = InstallerManager(state_manager=StateManager())
+
+
+def _get_installer(name: str):
+    try:
+        return manager.create_installer(name)
+    except KeyError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+
+def _invoke_tool(tool_name: str, handler: Callable[[Any], Any]) -> None:
+    installer = _get_installer(tool_name)
+    result = handler(installer)
+    if isinstance(result, str):
+        console.print(result)
+    elif result is not None:
+        console.print(result)
+
+
+def _register_tool_commands(tool_name: str) -> None:
+    @install_app.command(tool_name)
+    def install_tool() -> None:
+        """Install a registered application."""
+
+        _invoke_tool(tool_name, lambda installer: installer.install())
+
+    @update_app.command(tool_name)
+    def update_tool() -> None:
+        """Update a registered application."""
+
+        _invoke_tool(tool_name, lambda installer: installer.update())
+
+    @uninstall_app.command(tool_name)
+    def uninstall_tool() -> None:
+        """Uninstall a registered application."""
+
+        _invoke_tool(tool_name, lambda installer: installer.uninstall())
+
+    @doctor_app.command(tool_name)
+    def doctor_tool() -> None:
+        """Run diagnostics for a registered application."""
+
+        _invoke_tool(tool_name, lambda installer: installer.doctor())
+
+
+for tool_name in REGISTRY:
+    _register_tool_commands(tool_name)
 
 
 @app.command()
-def install() -> None:
-    """Placeholder install command."""
+def list() -> None:  # noqa: A003
+    """List installed applications."""
 
-    console.print("install: phase 1 placeholder")
-
-
-@app.command()
-def update() -> None:
-    """Placeholder update command."""
-
-    console.print("update: phase 1 placeholder")
-
-
-@app.command()
-def uninstall() -> None:
-    """Placeholder uninstall command."""
-
-    console.print("uninstall: phase 1 placeholder")
+    installed = manager.list_installed()
+    if not installed:
+        console.print("No applications installed.")
+        return
+    for item in installed:
+        name = item.get("name", "unknown")
+        version = item.get("version", "unknown")
+        console.print(f"{name}: {version}")
 
 
 @app.command()
-def doctor() -> None:
-    """Placeholder doctor command."""
+def version() -> None:
+    """Print the application version."""
 
-    console.print("doctor: phase 1 placeholder")
+    console.print(VERSION)
 
 
 @app.command()
@@ -61,20 +111,6 @@ def prepare() -> None:
     """Placeholder prepare command."""
 
     console.print("prepare: phase 1 placeholder")
-
-
-@app.command()
-def list() -> None:  # noqa: A003
-    """List installed applications."""
-
-    console.print("No applications installed.")
-
-
-@app.command()
-def version() -> None:
-    """Print the application version."""
-
-    console.print(VERSION)
 
 
 def _version_callback(value: bool) -> None:
@@ -97,3 +133,9 @@ def main(
 
     if version_flag:
         return
+
+
+app.add_typer(install_app, name="install")
+app.add_typer(update_app, name="update")
+app.add_typer(uninstall_app, name="uninstall")
+app.add_typer(doctor_app, name="doctor")
