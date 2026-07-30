@@ -8,4 +8,3 @@ from .cursor import CursorInstaller
 REGISTRY: dict[str, type[ToolInstaller]] = {
     "cursor": CursorInstaller,
 }
-

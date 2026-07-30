@@ -28,4 +28,3 @@ class InstallerManager:
         """Return the recorded application state."""
 
         return self.state_manager.load().get("applications", [])
-
