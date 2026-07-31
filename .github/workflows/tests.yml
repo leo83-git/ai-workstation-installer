@@ -31,15 +31,10 @@ jobs:
           . .venv/bin/activate
           ruff check .
 
-      - name: Show Black version
+      - name: Run Black check
         run: |
           . .venv/bin/activate
-          black --version
-
-      - name: Show Black diff
-        run: |
-          . .venv/bin/activate
-          black --check --diff .
+          black --check .
 
       - name: Run pytest
         run: |
