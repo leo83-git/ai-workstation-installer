@@ -13,7 +13,7 @@ from aiws.doctor import run_doctor_checks
 from aiws.installer import orchestrate_installation
 from aiws.logger import configure_logging
 from aiws.report import MarkdownReport
-from aiws.tools.base import ToolInstaller
+from aiws.tools.base import BaseInstaller, ToolInstaller
 from aiws.tools.registry import REGISTRY
 
 
@@ -66,3 +66,41 @@ class CoreModuleTests(unittest.TestCase):
         installer = DemoInstaller()
         self.assertTrue(installer.detect())
         self.assertEqual(installer.doctor(), [])
+
+    def test_base_installer_helpers(self) -> None:
+        class DemoInstaller(BaseInstaller):
+            def detect(self) -> bool:
+                return True
+
+            def update(self) -> None:
+                return None
+
+            def doctor(self) -> list[str]:
+                return []
+
+            def install_package(self) -> None:
+                return None
+
+            def _record_state(self, detection: bool) -> None:
+                self.state_manager.record_application({"name": self.name})
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            package = tmp_path / "demo.pkg"
+            package.write_text("pkg", encoding="utf-8")
+            executable = tmp_path / "bin/demo"
+            desktop_file = tmp_path / "share/applications/demo.desktop"
+            install_dir = tmp_path / "opt/demo"
+            installer = DemoInstaller(
+                name="demo",
+                package_path=package,
+                executable_path=executable,
+                desktop_file=desktop_file,
+                install_dir=install_dir,
+            )
+
+            installer.create_desktop_launcher()
+            installer.create_symlink()
+            self.assertTrue(desktop_file.exists())
+            self.assertTrue(executable.is_symlink())
+            self.assertEqual(installer.package_name(), "demo")
