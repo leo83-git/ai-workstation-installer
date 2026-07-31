@@ -151,7 +151,7 @@ class BaseInstaller(ToolInstaller):
             remove_path(self.desktop_file)
 
     def remove_symlink(self) -> None:
-        if self.executable_path.exists():
+        if self.executable_path.exists() or self.executable_path.is_symlink():
             remove_path(self.executable_path)
 
     def remove_state(self) -> None:
