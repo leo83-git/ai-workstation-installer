@@ -44,7 +44,7 @@ class CoreModuleTests(unittest.TestCase):
         self.assertFalse(desktop_integration_supported())
         self.assertEqual(run_doctor_checks(), [])
         self.assertEqual(orchestrate_installation(), {"status": "phase_1_only"})
-        self.assertEqual(REGISTRY, {})
+        self.assertIn("cursor", REGISTRY)
 
     def test_tool_installer_interface(self) -> None:
         class DemoInstaller(ToolInstaller):
