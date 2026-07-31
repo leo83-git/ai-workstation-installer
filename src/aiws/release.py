@@ -27,6 +27,6 @@ def get_release_metadata() -> ReleaseMetadata:
         version=get_version(),
         author="OpenAI",
         license="MIT",
-        repository="https://github.com/openai/ai-workstation-installer",
+        repository="https://github.com/leo83-git/ai-workstation-installer",
         supported_platform="Ubuntu 24.04 LTS",
     )
