@@ -41,7 +41,7 @@ class CoreModuleTests(unittest.TestCase):
 
     def test_placeholder_modules(self) -> None:
         self.assertEqual(create_backup_plan(), {"status": "placeholder"})
-        self.assertFalse(desktop_integration_supported())
+        self.assertTrue(desktop_integration_supported())
         self.assertEqual(run_doctor_checks(), [])
         self.assertEqual(orchestrate_installation(), {"status": "phase_1_only"})
         self.assertIn("cursor", REGISTRY)

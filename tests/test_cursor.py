@@ -140,13 +140,13 @@ class CursorInstallerTests(unittest.TestCase):
             with (
                 patch("aiws.tools.base.command_exists", return_value=True),
                 patch("aiws.tools.base.run_sudo") as run_sudo_mock,
-                patch("aiws.tools.base.remove_path") as remove_path_mock,
+                patch.object(installer.desktop_manager, "remove_entry") as remove_mock,
             ):
                 installer.uninstall()
 
             self.assertEqual(installer.state_manager.load()["applications"], [])
             run_sudo_mock.assert_any_call(["apt", "remove", "-y", "cursor"], check=True)
-            remove_path_mock.assert_called_once_with(desktop_file)
+            remove_mock.assert_called_once_with(desktop_file, icon_name="cursor")
 
     def test_doctor(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -52,6 +52,21 @@ class BaseInstallerBackupTests(unittest.TestCase):
 
             commit_mock.assert_called_once()
 
+    def test_helper_methods_delegate_correctly(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            installer = self._installer(Path(tmp))
+            with (
+                patch.object(
+                    installer.desktop_manager, "install_entry"
+                ) as install_mock,
+                patch.object(installer.desktop_manager, "remove_entry") as remove_mock,
+            ):
+                installer.create_desktop_launcher()
+                installer.remove_desktop_entry()
+
+            install_mock.assert_called_once()
+            remove_mock.assert_called_once()
+
     def test_failed_installation_restores_backups(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             installer = self._installer(Path(tmp))
@@ -126,3 +141,20 @@ class BaseInstallerBackupTests(unittest.TestCase):
                     for entry in logs.output
                 )
             )
+
+    def test_desktop_integration_failures_do_not_fail_installation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            installer = self._installer(Path(tmp))
+            with (
+                patch.object(
+                    installer.dependency_manager,
+                    "detect",
+                    return_value=type("Status", (), {"apt": True, "sudo": True})(),
+                ),
+                patch.object(
+                    installer.desktop_manager,
+                    "install_entry",
+                    side_effect=RuntimeError("desktop failed"),
+                ),
+            ):
+                installer.install()
