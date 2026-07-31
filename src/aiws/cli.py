@@ -19,7 +19,9 @@ except ImportError:  # pragma: no cover - environment fallback
 
 
 from .constants import VERSION
+from .doctor import Doctor
 from .installer_manager import InstallerManager
+from .report import ReportGenerator
 from .state import StateManager
 from .tools.registry import REGISTRY
 
@@ -28,8 +30,9 @@ app = typer.Typer(add_completion=False, help="AI Workstation Installer")
 install_app = typer.Typer(help="Install an application")
 update_app = typer.Typer(help="Update an application")
 uninstall_app = typer.Typer(help="Uninstall an application")
-doctor_app = typer.Typer(help="Run diagnostics for an application")
 manager = InstallerManager(state_manager=StateManager())
+doctor_service = Doctor()
+report_generator = ReportGenerator()
 
 
 def _get_installer(name: str):
@@ -67,12 +70,6 @@ def _register_tool_commands(tool_name: str) -> None:
 
         _invoke_tool(tool_name, lambda installer: installer.uninstall())
 
-    @doctor_app.command(tool_name)
-    def doctor_tool() -> None:
-        """Run diagnostics for a registered application."""
-
-        _invoke_tool(tool_name, lambda installer: installer.doctor())
-
 
 for tool_name in REGISTRY:
     _register_tool_commands(tool_name)
@@ -107,6 +104,27 @@ def report() -> None:
 
 
 @app.command()
+def doctor(
+    tool_name: str | None = typer.Argument(
+        None, help="Optional registered application name."
+    ),
+    json: bool = typer.Option(
+        False, "--json", help="Output JSON report."
+    ),  # noqa: A002
+) -> None:
+    """Run workstation diagnostics."""
+
+    if tool_name is not None:
+        _invoke_tool(tool_name, lambda installer: installer.doctor())
+        return
+    report = doctor_service.collect()
+    if json:
+        console.print(report_generator.render_json(report))
+        return
+    console.print(report_generator.render_rich(report))
+
+
+@app.command()
 def prepare() -> None:
     """Placeholder prepare command."""
 
@@ -138,4 +156,3 @@ def main(
 app.add_typer(install_app, name="install")
 app.add_typer(update_app, name="update")
 app.add_typer(uninstall_app, name="uninstall")
-app.add_typer(doctor_app, name="doctor")
