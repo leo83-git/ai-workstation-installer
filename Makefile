@@ -1,4 +1,4 @@
-.PHONY: install dev-install test coverage lint format check clean
+.PHONY: install dev-install test coverage lint format check clean verify
 
 install:
 	python3 -m pip install -e .
@@ -27,3 +27,8 @@ clean:
 	find . -type d -name '__pycache__' -prune -exec rm -rf {} +
 	find . -type f -name '*.pyc' -delete
 
+verify:
+	black --check .
+	ruff check .
+	isort --check-only src tests
+	pytest --cov=src/aiws --cov-report=term-missing

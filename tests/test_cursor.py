@@ -50,9 +50,15 @@ class CursorInstallerTests(unittest.TestCase):
             package.write_text("deb", encoding="utf-8")
             state_path = tmp_path / "state.json"
             state_manager = StateManager(state_path=state_path)
+            executable = tmp_path / "usr/bin/cursor"
+            desktop_file = tmp_path / "usr/share/applications/cursor.desktop"
+            install_dir = tmp_path / "opt/Cursor"
             installer = CursorInstaller(
                 package_path=package,
                 state_manager=state_manager,
+                executable_path=executable,
+                desktop_file=desktop_file,
+                install_dir=install_dir,
             )
 
             with (
@@ -85,9 +91,15 @@ class CursorInstallerTests(unittest.TestCase):
             state_manager = StateManager(state_path=state_path)
             state_manager.state["applications"] = [{"name": "existing"}]
             state_manager.save()
+            executable = tmp_path / "usr/bin/cursor"
+            desktop_file = tmp_path / "usr/share/applications/cursor.desktop"
+            install_dir = tmp_path / "opt/Cursor"
             installer = CursorInstaller(
                 package_path=package,
                 state_manager=state_manager,
+                executable_path=executable,
+                desktop_file=desktop_file,
+                install_dir=install_dir,
             )
 
             with (
@@ -121,12 +133,14 @@ class CursorInstallerTests(unittest.TestCase):
             installer = CursorInstaller(
                 state_manager=state_manager,
                 desktop_file=desktop_file,
+                executable_path=tmp_path / "usr/bin/cursor",
+                install_dir=tmp_path / "opt/Cursor",
             )
 
             with (
-                patch("aiws.tools.cursor.command_exists", return_value=True),
-                patch("aiws.tools.cursor.run_sudo") as run_sudo_mock,
-                patch("aiws.tools.cursor.remove_path") as remove_path_mock,
+                patch("aiws.tools.base.command_exists", return_value=True),
+                patch("aiws.tools.base.run_sudo") as run_sudo_mock,
+                patch("aiws.tools.base.remove_path") as remove_path_mock,
             ):
                 installer.uninstall()
 
@@ -155,6 +169,7 @@ class CursorInstallerTests(unittest.TestCase):
             installer = CursorInstaller(
                 executable_path=executable,
                 desktop_file=desktop_file,
+                install_dir=tmp_path / "opt/Cursor",
                 state_manager=state_manager,
             )
 
