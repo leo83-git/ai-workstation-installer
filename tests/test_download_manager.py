@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -14,6 +15,7 @@ from aiws.download_manager import (
     InvalidURLError,
     NetworkDownloadError,
 )
+from aiws.verifier import VerificationFailedError, Verifier
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -70,6 +72,24 @@ class DownloadManagerTests(unittest.TestCase):
             server.server_close()
             thread.join(timeout=1)
 
+    def test_successful_verification(self) -> None:
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            destination = tmp_path / "file.bin"
+            payload = b"verified payload"
+            destination.write_bytes(payload)
+            checksum = hashlib.sha256(payload).hexdigest()
+
+            manager = DownloadManager()
+            result = manager.download(
+                "http://example.com/file.bin",
+                destination,
+                expected_sha256=checksum,
+            )
+
+            self.assertEqual(result, destination)
+            self.assertTrue(destination.exists())
+
     def test_download_skips_existing_file(self) -> None:
         with TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -79,6 +99,23 @@ class DownloadManagerTests(unittest.TestCase):
             result = manager.download("http://example.com/file.bin", destination)
             self.assertEqual(result, destination)
             self.assertEqual(destination.read_bytes(), b"existing")
+
+    def test_skipped_verification(self) -> None:
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            destination = tmp_path / "file.bin"
+            destination.write_bytes(b"existing")
+            manager = DownloadManager()
+
+            with patch.object(Verifier, "verify_file") as verify_mock:
+                result = manager.download(
+                    "http://example.com/file.bin",
+                    destination,
+                    expected_sha256=None,
+                )
+
+            self.assertEqual(result, destination)
+            verify_mock.assert_not_called()
 
     def test_download_resumes_partial_file(self) -> None:
         server, thread = self._serve()
@@ -121,3 +158,39 @@ class DownloadManagerTests(unittest.TestCase):
         with patch("aiws.download_manager.urlopen", side_effect=raise_timeout):
             with self.assertRaises(InterruptedDownloadError):
                 manager.download("http://example.com/file.bin", Path("/tmp/file.bin"))
+
+    def test_failed_verification_deletes_downloaded_file(self) -> None:
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            destination = tmp_path / "file.bin"
+            destination.write_bytes(b"stale")
+            manager = DownloadManager()
+
+            with patch.object(
+                Verifier,
+                "verify_file",
+                side_effect=VerificationFailedError("bad checksum"),
+            ):
+                with self.assertRaises(VerificationFailedError):
+                    manager.download(
+                        "http://example.com/file.bin",
+                        destination,
+                        expected_sha256="0" * 64,
+                    )
+
+            self.assertFalse(destination.exists())
+
+    def test_verification_exception_propagates(self) -> None:
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            destination = tmp_path / "file.bin"
+            destination.write_bytes(b"content")
+            manager = DownloadManager()
+
+            with patch.object(Verifier, "verify_file", side_effect=ValueError("boom")):
+                with self.assertRaises(ValueError):
+                    manager.download(
+                        "http://example.com/file.bin",
+                        destination,
+                        expected_sha256="0" * 64,
+                    )

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,6 +18,10 @@ from rich.progress import (
     TextColumn,
     TimeRemainingColumn,
 )
+
+from .verifier import MissingChecksumError, VerificationFailedError, Verifier
+
+LOGGER = logging.getLogger(__name__)
 
 
 class DownloadError(RuntimeError):
@@ -42,17 +47,25 @@ class DownloadManager:
     timeout: float = 30.0
     retry_count: int = 2
     chunk_size: int = 1024 * 1024
+    verifier: Verifier = Verifier()
 
-    def download(self, url: str, destination: Path) -> Path:
+    def download(
+        self, url: str, destination: Path, expected_sha256: str | None = None
+    ) -> Path:
         parsed = self._validate_url(url)
         destination.parent.mkdir(parents=True, exist_ok=True)
         if destination.exists():
+            if expected_sha256:
+                self._verify_download(destination, expected_sha256)
             return destination
 
         part_path = self._part_path(destination)
         for attempt in range(self.retry_count + 1):
             try:
-                return self._download_once(parsed, url, destination, part_path)
+                downloaded = self._download_once(parsed, url, destination, part_path)
+                if expected_sha256:
+                    self._verify_download(downloaded, expected_sha256)
+                return downloaded
             except InterruptedDownloadError:
                 if destination.exists():
                     return destination
@@ -114,6 +127,17 @@ class DownloadManager:
             raise NetworkDownloadError(str(exc)) from exc
         except OSError as exc:
             raise InterruptedDownloadError(str(exc)) from exc
+
+    def _verify_download(self, file_path: Path, expected_sha256: str) -> None:
+        try:
+            self.verifier.verify_file(file_path, expected_sha256)
+        except MissingChecksumError:
+            raise
+        except VerificationFailedError:
+            LOGGER.error("Removing %s after failed verification", file_path)
+            if file_path.exists():
+                file_path.unlink()
+            raise
 
     def _validate_url(self, url: str):
         parsed = urlparse(url)

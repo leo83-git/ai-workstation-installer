@@ -48,6 +48,7 @@ class BaseInstaller(ToolInstaller):
     executable_path: Path
     desktop_file: Path
     install_dir: Path
+    sha256_checksum: str | None = None
     dependency_manager: DependencyManager = field(default_factory=DependencyManager)
     state_manager: StateManager = field(default_factory=StateManager)
     logger: logging.Logger = field(init=False, repr=False)
