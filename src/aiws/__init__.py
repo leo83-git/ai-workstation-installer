@@ -1,7 +1,7 @@
 """AI Workstation Installer package."""
 
-from .constants import VERSION
+from .version import VERSION, get_version
 
 __version__ = VERSION
 
-__all__ = ["VERSION", "__version__"]
+__all__ = ["VERSION", "__version__", "get_version"]
