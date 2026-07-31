@@ -18,6 +18,11 @@ class CLITests(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn(VERSION, result.output)
 
+    def test_cli_version_flag(self) -> None:
+        result = runner.invoke(app, ["--version"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn(VERSION, result.output)
+
     def test_cli_list_command(self) -> None:
         result = runner.invoke(app, ["list"])
         self.assertEqual(result.exit_code, 0)

@@ -1,5 +1,12 @@
 """Project constants."""
 
-VERSION = "0.1.0"
+from .version import VERSION
+
 STATE_FILE = "~/.local/share/aiws/state.json"
 APP_NAME = "aiws"
+
+__all__ = [
+    "VERSION",
+    "STATE_FILE",
+    "APP_NAME",
+]

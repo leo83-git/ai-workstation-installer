@@ -18,12 +18,12 @@ except ImportError:  # pragma: no cover - environment fallback
             print(*args, **kwargs)
 
 
-from .constants import VERSION
 from .doctor import Doctor
 from .installer_manager import InstallerManager
 from .report import ReportGenerator
 from .state import StateManager
 from .tools.registry import REGISTRY
+from .version import get_version
 
 console = Console()
 app = typer.Typer(add_completion=False, help="AI Workstation Installer")
@@ -93,7 +93,7 @@ def list() -> None:  # noqa: A003
 def version() -> None:
     """Print the application version."""
 
-    console.print(VERSION)
+    console.print(get_version())
 
 
 @app.command()
@@ -133,7 +133,7 @@ def prepare() -> None:
 
 def _version_callback(value: bool) -> None:
     if value:
-        console.print(VERSION)
+        console.print(get_version())
         raise typer.Exit()
 
 
