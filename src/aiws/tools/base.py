@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from aiws.backup import BackupManager
 from aiws.dependencies import DependencyManager
 from aiws.filesystem import remove_path
 from aiws.shell import command_exists, run_sudo
@@ -49,6 +50,7 @@ class BaseInstaller(ToolInstaller):
     desktop_file: Path
     install_dir: Path
     sha256_checksum: str | None = None
+    backup_manager: BackupManager = field(default_factory=BackupManager)
     dependency_manager: DependencyManager = field(default_factory=DependencyManager)
     state_manager: StateManager = field(default_factory=StateManager)
     logger: logging.Logger = field(init=False, repr=False)
@@ -63,17 +65,26 @@ class BaseInstaller(ToolInstaller):
         self.detect_existing_installation()
         self.verify_dependencies()
         self.verify_package()
+        self.begin_backup()
         try:
             self.install_package()
             self.create_desktop_launcher()
             self.create_symlink()
             self.verify_installation()
             self.update_state()
+            self.commit_backup()
         except Exception:
             self.logger.exception(
                 "%s installation failed; rolling back state", self.name
             )
-            self.rollback(previous_state)
+            try:
+                self.restore_backup()
+            except Exception:
+                self.logger.exception("Rollback failed while restoring backups")
+            try:
+                self.rollback(previous_state)
+            except Exception:
+                self.logger.exception("Rollback failed while restoring state")
             raise
         self.logger.info("%s installation completed", self.name)
 
@@ -131,12 +142,14 @@ class BaseInstaller(ToolInstaller):
         self.state_manager.save()
 
     def create_desktop_launcher(self) -> None:
+        self.backup_file(self.desktop_file)
         if self.desktop_file.exists():
             return
         self.desktop_file.parent.mkdir(parents=True, exist_ok=True)
         self.desktop_file.write_text(self.desktop_launcher_contents(), encoding="utf-8")
 
     def create_symlink(self) -> None:
+        self.backup_file(self.executable_path)
         if self.executable_path.exists():
             return
         self.executable_path.parent.mkdir(parents=True, exist_ok=True)
@@ -175,6 +188,18 @@ class BaseInstaller(ToolInstaller):
 
     def _installed_flag(self, detection: Any) -> bool:
         return bool(detection)
+
+    def begin_backup(self) -> None:
+        self.backup_manager.begin()
+
+    def backup_file(self, path: Path) -> Path | None:
+        return self.backup_manager.backup_file(path)
+
+    def restore_backup(self) -> None:
+        self.backup_manager.restore()
+
+    def commit_backup(self) -> None:
+        self.backup_manager.commit()
 
     @abstractmethod
     def install_package(self) -> None:
