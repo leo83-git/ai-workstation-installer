@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from typer.testing import CliRunner
 
@@ -39,3 +40,39 @@ class CLITests(unittest.TestCase):
 
     def test_cursor_registry_present(self) -> None:
         self.assertIn("cursor", REGISTRY)
+
+    def test_doctor_command(self) -> None:
+        with (
+            patch(
+                "aiws.cli.doctor_service.collect",
+                return_value={
+                    "title": "AI Workstation Diagnostics",
+                    "system": {"status": "ok"},
+                },
+            ),
+            patch(
+                "aiws.report.ReportGenerator.render_rich",
+                return_value="rendered report",
+            ),
+        ):
+            result = runner.invoke(app, ["doctor"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("rendered report", result.output)
+
+    def test_doctor_json_command(self) -> None:
+        with (
+            patch(
+                "aiws.cli.doctor_service.collect",
+                return_value={
+                    "title": "AI Workstation Diagnostics",
+                    "system": {"status": "ok"},
+                },
+            ),
+            patch(
+                "aiws.report.ReportGenerator.render_json",
+                return_value='{"title": "AI Workstation Diagnostics"}',
+            ),
+        ):
+            result = runner.invoke(app, ["doctor", "--json"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn('"title": "AI Workstation Diagnostics"', result.output)
