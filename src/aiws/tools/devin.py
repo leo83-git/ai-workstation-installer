@@ -108,24 +108,6 @@ class DevinInstaller(BaseInstaller):
             archive.extractall(self.install_dir)
         self._ensure_binary_layout()
 
-    def create_desktop_launcher(self) -> None:
-        if self.desktop_file.exists():
-            return
-        self.desktop_file.parent.mkdir(parents=True, exist_ok=True)
-        self.desktop_file.write_text(self.desktop_launcher_contents(), encoding="utf-8")
-
-    def desktop_launcher_contents(self) -> str:
-        icon_line = (
-            f"Icon={self._desktop_icon_path()}\n" if self._desktop_icon_path() else ""
-        )
-        return (
-            "[Desktop Entry]\n"
-            "Type=Application\n"
-            f"Name={self.name}\n"
-            f"Exec={self.executable_path}\n"
-            f"{icon_line}"
-        )
-
     def symlink_target(self) -> Path:
         return self.install_dir / self.binary_name
 
@@ -150,6 +132,9 @@ class DevinInstaller(BaseInstaller):
 
     def _detect_desktop_file(self) -> bool:
         return self.desktop_file.exists()
+
+    def desktop_entry_icon_path(self) -> Path | None:
+        return self._desktop_icon_path()
 
     def _read_version(self) -> str | None:
         if not command_exists(self.executable_path.name):
@@ -176,11 +161,11 @@ class DevinInstaller(BaseInstaller):
         ]
         return candidates[0] if candidates else None
 
-    def _desktop_icon_path(self) -> str | None:
+    def _desktop_icon_path(self) -> Path | None:
         for pattern in ("*.png", "*.svg", "*.xpm"):
             for icon_path in self.install_dir.rglob(pattern):
                 if icon_path.is_file():
-                    return str(icon_path)
+                    return icon_path
         return None
 
     @staticmethod

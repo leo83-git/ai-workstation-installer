@@ -11,6 +11,7 @@ from typing import Any
 
 from aiws.backup import BackupManager
 from aiws.dependencies import DependencyManager
+from aiws.desktop import DesktopEntry, DesktopManager
 from aiws.filesystem import remove_path
 from aiws.shell import command_exists, run_sudo
 from aiws.state import StateManager
@@ -51,6 +52,7 @@ class BaseInstaller(ToolInstaller):
     install_dir: Path
     sha256_checksum: str | None = None
     backup_manager: BackupManager = field(default_factory=BackupManager)
+    desktop_manager: DesktopManager = field(default_factory=DesktopManager)
     dependency_manager: DependencyManager = field(default_factory=DependencyManager)
     state_manager: StateManager = field(default_factory=StateManager)
     logger: logging.Logger = field(init=False, repr=False)
@@ -143,10 +145,21 @@ class BaseInstaller(ToolInstaller):
 
     def create_desktop_launcher(self) -> None:
         self.backup_file(self.desktop_file)
-        if self.desktop_file.exists():
+        entry = self.desktop_entry()
+        icon_path = self.desktop_entry_icon_path()
+        if self.desktop_entry_requires_icon() and icon_path is None:
             return
-        self.desktop_file.parent.mkdir(parents=True, exist_ok=True)
-        self.desktop_file.write_text(self.desktop_launcher_contents(), encoding="utf-8")
+        self._safe_desktop_operation(
+            lambda: (
+                self.desktop_manager.update_entry(
+                    self.desktop_file, entry, icon_path=icon_path
+                )
+                if self.desktop_file.exists()
+                else self.desktop_manager.install_entry(
+                    self.desktop_file, entry, icon_path=icon_path
+                )
+            )
+        )
 
     def create_symlink(self) -> None:
         self.backup_file(self.executable_path)
@@ -161,8 +174,11 @@ class BaseInstaller(ToolInstaller):
             run_sudo(["apt", "autoremove", "-y"], check=False)
 
     def remove_desktop_entry(self) -> None:
-        if self.desktop_file.exists():
-            remove_path(self.desktop_file)
+        self._safe_desktop_operation(
+            lambda: self.desktop_manager.remove_entry(
+                self.desktop_file, icon_name=self.package_name()
+            )
+        )
 
     def remove_symlink(self) -> None:
         if self.executable_path.exists() or self.executable_path.is_symlink():
@@ -176,12 +192,39 @@ class BaseInstaller(ToolInstaller):
         return self.name
 
     def desktop_launcher_contents(self) -> str:
-        return (
-            "[Desktop Entry]\n"
-            "Type=Application\n"
-            f"Name={self.name}\n"
-            f"Exec={self.executable_path}\n"
+        return self.desktop_entry().render()
+
+    def desktop_entry(self) -> DesktopEntry:
+        return DesktopEntry(
+            name=self.name,
+            exec_path=self.executable_path,
+            comment=self.desktop_entry_comment(),
+            icon=self.desktop_entry_icon(),
+            terminal=self.desktop_entry_terminal(),
+            categories=self.desktop_entry_categories(),
+            startup_wm_class=self.desktop_entry_startup_wm_class(),
         )
+
+    def desktop_entry_comment(self) -> str | None:
+        return None
+
+    def desktop_entry_icon(self) -> str | Path | None:
+        return None
+
+    def desktop_entry_icon_path(self) -> Path | None:
+        return None
+
+    def desktop_entry_terminal(self) -> bool:
+        return False
+
+    def desktop_entry_categories(self) -> tuple[str, ...]:
+        return ("Utility",)
+
+    def desktop_entry_startup_wm_class(self) -> str | None:
+        return None
+
+    def desktop_entry_requires_icon(self) -> bool:
+        return False
 
     def symlink_target(self) -> Path:
         return self.install_dir / self.name
@@ -200,6 +243,14 @@ class BaseInstaller(ToolInstaller):
 
     def commit_backup(self) -> None:
         self.backup_manager.commit()
+
+    def _safe_desktop_operation(self, operation: Any) -> None:
+        try:
+            operation()
+        except Exception:
+            self.logger.exception(
+                "Non-fatal desktop integration failure for %s", self.name
+            )
 
     @abstractmethod
     def install_package(self) -> None:
